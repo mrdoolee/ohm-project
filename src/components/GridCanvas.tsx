@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useCircuit } from '../state/CircuitContext'
 import { CELL, GRID_COLS, GRID_ROWS, clampToGrid, nearestGridPoint, pointKey, toPixel, type GridPoint } from '../domain/grid'
 import { clampOriginForRotation, partTerminals, type Part, type PartKind } from '../domain/parts'
@@ -76,7 +76,17 @@ interface GridCanvasProps {
   draggingKind: PartKind | 'wire' | null
 }
 
-export function GridCanvas({ draggingKind }: GridCanvasProps) {
+export interface GridCanvasHandle {
+  /** Update (or clear, if outside the canvas) the WYSIWYG palette-drag hover preview. */
+  updateDragHover: (clientX: number, clientY: number) => void
+  /** Place the dragged palette item if the pointer is over the canvas, then clear the preview either way. */
+  commitDrop: (clientX: number, clientY: number, kind: PartKind | 'wire') => void
+}
+
+export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function GridCanvas(
+  { draggingKind },
+  ref,
+) {
   const { state, dispatch, solution } = useCircuit()
   const svgRef = useRef<SVGSVGElement>(null)
   const [hoverPoint, setHoverPoint] = useState<GridPoint | null>(null)
@@ -98,6 +108,34 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     () => computeWireSegmentFlows(state.parts, state.wires, solution.components),
     [state.parts, state.wires, solution.components],
   )
+
+  function isClientPointInsideSvg(clientX: number, clientY: number): boolean {
+    if (!svgRef.current) return false
+    const rect = svgRef.current.getBoundingClientRect()
+    return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+  }
+
+  // A palette item being dragged in is driven from App.tsx's window-level
+  // pointer listeners, not this SVG's own onPointerMove/onPointerUp — on
+  // touch, a pointer's events stay targeted at wherever it went *down*
+  // (the palette item) and only bubble from there, so they never reach this
+  // SVG's own handlers no matter where the finger physically moves. Only
+  // App's window listener (which receives them via bubbling regardless of
+  // that target-lock) can reliably tell when the pointer is over the canvas.
+  useImperativeHandle(ref, () => ({
+    updateDragHover(clientX, clientY) {
+      if (!svgRef.current) return
+      setHoverPoint(isClientPointInsideSvg(clientX, clientY) ? clientToGrid(svgRef.current, clientX, clientY) : null)
+    },
+    commitDrop(clientX, clientY, kind) {
+      if (svgRef.current && isClientPointInsideSvg(clientX, clientY)) {
+        const point = clientToGrid(svgRef.current, clientX, clientY)
+        if (kind === 'wire') dispatch({ type: 'ADD_WIRE', origin: point })
+        else dispatch({ type: 'ADD_PART', kind, origin: point })
+      }
+      setHoverPoint(null)
+    },
+  }))
 
   function startPartDrag(part: Part) {
     dispatch({ type: 'SELECT', id: part.id })
@@ -139,26 +177,9 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     if (draggingEndpoint && dragWireOriginal) {
       setDragWirePoints(resizeWirePoints(dragWireOriginal.points, draggingEndpoint.endpoint, point))
     }
-    // A brand-new part/wire being dragged in from the palette (pointer-based,
-    // not HTML5 drag-and-drop, so it works on touch/tablet too) — just needs
-    // the WYSIWYG hover preview kept in sync with the pointer.
-    if (draggingKind) {
-      setHoverPoint(point)
-    }
   }
 
   function handlePointerUp() {
-    if (draggingKind) {
-      if (hoverPoint) {
-        if (draggingKind === 'wire') {
-          dispatch({ type: 'ADD_WIRE', origin: hoverPoint })
-        } else {
-          dispatch({ type: 'ADD_PART', kind: draggingKind, origin: hoverPoint })
-        }
-      }
-      setHoverPoint(null)
-      return
-    }
     if (overDeleteZone) {
       if (draggingPartId) dispatch({ type: 'REMOVE_PART', id: draggingPartId })
       else if (draggingWireId) dispatch({ type: 'REMOVE_WIRE', id: draggingWireId })
@@ -214,7 +235,6 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       className="w-full h-auto max-w-full border border-slate-300 bg-slate-50 touch-none select-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={() => draggingKind && setHoverPoint(null)}
       onClick={handleCanvasClick}
     >
       <RealisticDefs />
@@ -398,4 +418,4 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       )}
     </svg>
   )
-}
+})

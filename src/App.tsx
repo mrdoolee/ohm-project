@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { GridCanvas } from './components/GridCanvas'
+import { useEffect, useRef, useState } from 'react'
+import { GridCanvas, type GridCanvasHandle } from './components/GridCanvas'
 import { Palette, PaletteThumbnail } from './components/Palette'
 import { PartInspector } from './components/PartInspector'
 import { Toolbar } from './components/Toolbar'
@@ -16,36 +16,45 @@ const AUTO_SCROLL_SPEED = 16
 function AppShell() {
   const [draggingKind, setDraggingKind] = useState<PartKind | 'wire' | null>(null)
   const [dragPointer, setDragPointer] = useState<{ x: number; y: number } | null>(null)
+  const gridCanvasRef = useRef<GridCanvasHandle>(null)
 
   // Palette items start a drag on pointerdown (works for mouse and touch alike,
   // unlike HTML5 native drag-and-drop which tablets/touch browsers don't fire).
-  // GridCanvas's own pointer handlers pick up the move/drop once the pointer
-  // reaches the canvas; this window listener also tracks the pointer so a
-  // floating preview can follow it (native drag-and-drop shows one automatically;
-  // pointer-based dragging needs it drawn by hand, and without it a touch drag
-  // that starts on the palette gives no visible feedback at all until the
-  // finger happens to reach the canvas), auto-scrolls the page when the pointer
-  // nears the top/bottom edge (palette and canvas don't both fit on a narrow
-  // screen), and is the safety net that un-sticks `draggingKind` if the pointer
-  // is released outside the canvas or a touch is cancelled.
+  // Everything about the drag — the WYSIWYG hover preview on the canvas, the
+  // actual drop, the floating thumbnail that follows the pointer, and
+  // auto-scroll near the top/bottom edge — is driven from these window-level
+  // listeners rather than GridCanvas's own onPointerMove/onPointerUp: on
+  // touch, a pointer's events stay targeted at wherever it went *down* (the
+  // palette item here) and only bubble from there, never actually firing on
+  // the canvas SVG no matter where the finger physically moves — only a
+  // window listener (which still receives them via bubbling) sees them
+  // reliably, so GridCanvas exposes `updateDragHover`/`commitDrop` for this
+  // to call imperatively instead of relying on its own pointer handlers.
   useEffect(() => {
     if (!draggingKind) return
     const move = (e: PointerEvent) => {
       setDragPointer({ x: e.clientX, y: e.clientY })
+      gridCanvasRef.current?.updateDragHover(e.clientX, e.clientY)
       if (e.clientY < AUTO_SCROLL_EDGE) window.scrollBy(0, -AUTO_SCROLL_SPEED)
       else if (e.clientY > window.innerHeight - AUTO_SCROLL_EDGE) window.scrollBy(0, AUTO_SCROLL_SPEED)
     }
-    const clear = () => {
+    const finish = (e: PointerEvent) => {
+      gridCanvasRef.current?.commitDrop(e.clientX, e.clientY, draggingKind)
+      setDraggingKind(null)
+      setDragPointer(null)
+    }
+    const cancel = () => {
+      gridCanvasRef.current?.updateDragHover(-1, -1) // off-canvas -> clears the hover preview
       setDraggingKind(null)
       setDragPointer(null)
     }
     window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', clear)
-    window.addEventListener('pointercancel', clear)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', cancel)
     return () => {
       window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', clear)
-      window.removeEventListener('pointercancel', clear)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
     }
   }, [draggingKind])
 
@@ -59,7 +68,7 @@ function AppShell() {
       <div className="flex gap-4 items-start flex-wrap">
         <Palette onDragStart={setDraggingKind} />
         <div className="flex-1 min-w-[400px]">
-          <GridCanvas draggingKind={draggingKind} />
+          <GridCanvas ref={gridCanvasRef} draggingKind={draggingKind} />
         </div>
         <div className="flex flex-col gap-4">
           <PartInspector />
