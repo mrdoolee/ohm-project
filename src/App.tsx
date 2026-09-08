@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { GridCanvas } from './components/GridCanvas'
-import { MeterReadout } from './components/MeterReadout'
 import { Palette } from './components/Palette'
+import { PartInspector } from './components/PartInspector'
 import { Toolbar } from './components/Toolbar'
-import { ValueEditorPopover } from './components/ValueEditorPopover'
 import type { PartKind } from './domain/parts'
 import { CircuitProvider } from './state/CircuitContext'
 
@@ -23,8 +22,7 @@ function AppShell() {
           <GridCanvas draggingKind={draggingKind} />
         </div>
         <div className="flex flex-col gap-4">
-          <ValueEditorPopover />
-          <MeterReadout />
+          <PartInspector />
         </div>
       </div>
     </div>

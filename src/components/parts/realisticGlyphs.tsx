@@ -155,6 +155,9 @@ export function RealisticMeter({ kind, reading }: { kind: 'V' | 'A'; reading: nu
         transform={`rotate(${angle} ${CELL / 2} 0)`}
       />
       <circle cx={CELL / 2} cy={0} r={2} fill="#1e293b" />
+      <text x={CELL / 2} y={9} fontSize={9} textAnchor="middle" fontWeight={700} className="fill-slate-500">
+        {kind}
+      </text>
       <text x={CELL / 2} y={26} fontSize={10} textAnchor="middle" fontWeight={600} className="fill-blue-700">
         {reading.toFixed(2)}
         {kind}
