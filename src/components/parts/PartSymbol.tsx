@@ -13,14 +13,26 @@ import {
 const BULB_REFERENCE_CURRENT = 1 // amps treated as "100% brightness" for the visual scale
 
 export type DisplayMode = 'realistic' | 'schematic'
+export type FlowDisplay = 'current' | 'electron'
+
+const FLOW_EPSILON = 1e-6
 
 interface PartSymbolProps {
   part: Part
   result: ComponentResult | undefined
   selected: boolean
   mode: DisplayMode
+  flowDisplay: FlowDisplay
   onSelect: () => void
   onToggleSwitch: () => void
+}
+
+/** Small filled triangle on a lead, pointing toward +x (right) or -x (left) in local part space. */
+function FlowArrow({ cx, pointsRight }: { cx: number; pointsRight: boolean }) {
+  const points = pointsRight
+    ? `${cx - 4},-3.5 ${cx - 4},3.5 ${cx + 4},0`
+    : `${cx + 4},-3.5 ${cx + 4},3.5 ${cx - 4},0`
+  return <polygon points={points} fill="#ea580c" />
 }
 
 interface LabelProps {
@@ -129,12 +141,18 @@ function MeterSymbol({ kind, reading, unit, rotation }: { kind: 'V' | 'A'; readi
   )
 }
 
-export function PartSymbol({ part, result, selected, mode, onSelect, onToggleSwitch }: PartSymbolProps) {
+export function PartSymbol({ part, result, selected, mode, flowDisplay, onSelect, onToggleSwitch }: PartSymbolProps) {
   const { a } = partTerminals(part)
   const pxA = toPixel(a)
   const rotation = part.rotation
   const current = result?.current ?? 0
   const voltage = result?.voltage ?? 0
+
+  // `current` is signed in the part's own terminal-a -> terminal-b direction.
+  // Conventional current follows that sign; electron flow runs the other way.
+  const conventionalPointsRight = current > 0
+  const showFlowArrow = Math.abs(current) > FLOW_EPSILON
+  const flowPointsRight = flowDisplay === 'current' ? conventionalPointsRight : !conventionalPointsRight
 
   return (
     <g
@@ -147,6 +165,12 @@ export function PartSymbol({ part, result, selected, mode, onSelect, onToggleSwi
     >
       <rect x={-4} y={-20} width={CELL + 8} height={40} fill="transparent" />
       <line x1={0} y1={0} x2={CELL} y2={0} stroke="currentColor" strokeWidth={2} />
+      {showFlowArrow && (
+        <>
+          <FlowArrow cx={CELL * 0.1} pointsRight={flowPointsRight} />
+          <FlowArrow cx={CELL * 0.9} pointsRight={flowPointsRight} />
+        </>
+      )}
       {mode === 'schematic' ? (
         <>
           {part.kind === 'battery' && <BatterySymbol value={part.value} rotation={rotation} />}

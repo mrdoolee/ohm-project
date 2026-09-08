@@ -11,6 +11,7 @@ import {
 import type { Wire } from '../domain/wires'
 
 export type DisplayMode = 'realistic' | 'schematic'
+export type FlowDisplay = 'current' | 'electron'
 export type WireEndpoint = 'start' | 'end'
 
 export interface CircuitState {
@@ -20,6 +21,7 @@ export interface CircuitState {
   selectedWireId: string | null
   limitWarning: boolean
   displayMode: DisplayMode
+  flowDisplay: FlowDisplay
 }
 
 export type CircuitAction =
@@ -37,6 +39,7 @@ export type CircuitAction =
   | { type: 'REMOVE_WIRE'; id: string }
   | { type: 'LOAD'; parts: Part[]; wires: Wire[] }
   | { type: 'SET_DISPLAY_MODE'; mode: DisplayMode }
+  | { type: 'SET_FLOW_DISPLAY'; mode: FlowDisplay }
 
 export const initialCircuitState: CircuitState = {
   parts: [],
@@ -45,6 +48,7 @@ export const initialCircuitState: CircuitState = {
   selectedWireId: null,
   limitWarning: false,
   displayMode: 'realistic',
+  flowDisplay: 'current',
 }
 
 function clampWireOrigin(origin: GridPoint): GridPoint {
@@ -190,6 +194,10 @@ export function circuitReducer(state: CircuitState, action: CircuitAction): Circ
 
     case 'SET_DISPLAY_MODE': {
       return { ...state, displayMode: action.mode }
+    }
+
+    case 'SET_FLOW_DISPLAY': {
+      return { ...state, flowDisplay: action.mode }
     }
 
     default:

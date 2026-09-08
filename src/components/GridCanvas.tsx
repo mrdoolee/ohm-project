@@ -278,6 +278,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
               result={solution.components[part.id]}
               selected={state.selectedId === part.id}
               mode={state.displayMode}
+              flowDisplay={state.flowDisplay}
               onSelect={() => dispatch({ type: 'SELECT', id: part.id })}
               onToggleSwitch={() => dispatch({ type: 'TOGGLE_SWITCH', id: part.id })}
             />
@@ -339,6 +340,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
             result={undefined}
             selected={false}
             mode={state.displayMode}
+            flowDisplay={state.flowDisplay}
             onSelect={() => {}}
             onToggleSwitch={() => {}}
           />

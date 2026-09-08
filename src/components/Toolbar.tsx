@@ -59,6 +59,23 @@ export function Toolbar() {
           </button>
         </div>
         <div className="w-px h-6 bg-slate-300 mx-1" />
+        <div className="flex rounded-md border border-slate-300 overflow-hidden text-sm">
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'current' })}
+            className={`px-3 py-1.5 ${state.flowDisplay === 'current' ? 'bg-orange-600 text-white' : 'hover:bg-slate-100'}`}
+          >
+            전류 방향
+          </button>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'electron' })}
+            className={`px-3 py-1.5 ${state.flowDisplay === 'electron' ? 'bg-orange-600 text-white' : 'hover:bg-slate-100'}`}
+          >
+            전자 방향
+          </button>
+        </div>
+        <div className="w-px h-6 bg-slate-300 mx-1" />
         {confirmingReset ? (
           <div className="flex items-center gap-1 text-sm">
             <span className="text-slate-600">정말 초기화할까요?</span>

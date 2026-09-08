@@ -59,6 +59,10 @@ If you change the solver's merge/reduction logic, re-run `circuitSolver.test.ts`
 
 Every part renders in one of two modes (`DisplayMode`, toggled in `Toolbar`, stored in `CircuitState.displayMode`): schematic symbols (`PartSymbol.tsx`'s inline sub-components) or realistic-looking icons (`parts/realisticGlyphs.tsx`). Both share the same outer transform/rotation/hit-rect/selection logic in `PartSymbol.tsx` — only the inner glyph swaps. The palette (`Palette.tsx`) always shows the realistic glyphs regardless of canvas mode, reusing the same components at a fixed neutral size; realistic glyphs' shared gradients (`RealisticDefs`) are mounted once in `GridCanvas.tsx` and referenced by id from anywhere in the document (do not duplicate `RealisticDefs` elsewhere — SVG gradient ids are document-global).
 
+### Flow direction display (`FlowDisplay`, toggled in `Toolbar`, `CircuitState.flowDisplay`)
+
+Display-only, does not touch the solver. `PartSymbol.tsx` draws two small arrow triangles on every current-carrying part's leads, using `ComponentResult.current`'s sign directly: positive means current flows terminal `a` → `b` (since `CircuitEdge.nodeA` maps to terminal `a`), so `'current'` mode points the arrows along that sign and `'electron'` mode just flips it. Arrows are suppressed below `FLOW_EPSILON` so an open branch or a voltmeter (always zero current) shows none. Scope was deliberately capped at arrows-on-parts — no animation along wire paths — because a wire can meet a T-junction where flow direction along each branch isn't well-defined from a single `ComponentResult`.
+
 ### Part geometry (`domain/parts.ts`)
 
 A part occupies two adjacent grid points (terminals `a`/`b`), one cell apart, direction determined by `rotation` (0/90/180/270 — rotating changes both orientation and battery polarity direction). `clampOriginForRotation` keeps both terminals on-grid; it must be re-applied whenever rotation changes, not just on move.
