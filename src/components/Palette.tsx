@@ -43,24 +43,21 @@ function PaletteThumbnail({ kind }: { kind: PartKind | 'wire' }) {
 }
 
 interface PaletteProps {
-  onDragKindChange: (kind: PartKind | 'wire' | null) => void
+  onDragStart: (kind: PartKind | 'wire') => void
 }
 
-export function Palette({ onDragKindChange }: PaletteProps) {
+export function Palette({ onDragStart }: PaletteProps) {
   return (
     <div className="flex flex-col gap-2 p-3 bg-white border border-slate-300 rounded-lg w-44">
       <h2 className="text-sm font-semibold text-slate-700 mb-1">부품 팔레트</h2>
       {PALETTE_ITEMS.map((item) => (
         <div
           key={item.kind}
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData('text/part-kind', item.kind)
-            e.dataTransfer.effectAllowed = 'copy'
-            onDragKindChange(item.kind)
+          onPointerDown={(e) => {
+            e.preventDefault()
+            onDragStart(item.kind)
           }}
-          onDragEnd={() => onDragKindChange(null)}
-          className="cursor-grab active:cursor-grabbing flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
+          className="touch-none select-none cursor-grab active:cursor-grabbing flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
         >
           <PaletteThumbnail kind={item.kind} />
           {item.label}

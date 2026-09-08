@@ -1,11 +1,25 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useCircuit } from '../state/CircuitContext'
 import { CELL, GRID_COLS, GRID_ROWS, clampToGrid, nearestGridPoint, pointKey, toPixel, type GridPoint } from '../domain/grid'
 import { clampOriginForRotation, partTerminals, type Part, type PartKind } from '../domain/parts'
-import type { Wire } from '../domain/wires'
+import { expandWireToUnitPoints, type Wire } from '../domain/wires'
+import { computeWireSegmentFlows } from '../domain/wireFlow'
 import { axisLock, type WireEndpoint } from '../state/circuitReducer'
+import { FLOW_ARROW_COLOR, FLOW_EPSILON } from './parts/PartSymbol'
 import { PartSymbol } from './parts/PartSymbol'
 import { RealisticDefs } from './parts/realisticGlyphs'
+
+/** Small filled triangle centered at (x,y), pointing toward angle degrees (0 = +x). */
+function WireFlowArrow({ x, y, angle }: { x: number; y: number; angle: number }) {
+  return (
+    <polygon
+      points="-4,-3.5 -4,3.5 4,0"
+      fill={FLOW_ARROW_COLOR}
+      transform={`translate(${x},${y}) rotate(${angle})`}
+      pointerEvents="none"
+    />
+  )
+}
 
 const WIDTH = GRID_COLS * CELL
 const HEIGHT = GRID_ROWS * CELL
@@ -80,27 +94,10 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
   const [dragWirePoints, setDragWirePoints] = useState<GridPoint[] | null>(null)
   const [overDeleteZone, setOverDeleteZone] = useState(false)
 
-  function handleDragOver(e: React.DragEvent<SVGSVGElement>) {
-    e.preventDefault()
-    // Without an explicit dropEffect, Chrome falls back to the "not-allowed" cursor
-    // over child elements (parts, wire handles) even though drop is accepted here.
-    e.dataTransfer.dropEffect = 'copy'
-    if (!svgRef.current) return
-    setHoverPoint(clientToGrid(svgRef.current, e.clientX, e.clientY))
-  }
-
-  function handleDrop(e: React.DragEvent<SVGSVGElement>) {
-    e.preventDefault()
-    setHoverPoint(null)
-    const kind = e.dataTransfer.getData('text/part-kind') as PartKind | 'wire'
-    if (!kind || !svgRef.current) return
-    const point = clientToGrid(svgRef.current, e.clientX, e.clientY)
-    if (kind === 'wire') {
-      dispatch({ type: 'ADD_WIRE', origin: point })
-      return
-    }
-    dispatch({ type: 'ADD_PART', kind, origin: point })
-  }
+  const wireFlows = useMemo(
+    () => computeWireSegmentFlows(state.parts, state.wires, solution.components),
+    [state.parts, state.wires, solution.components],
+  )
 
   function startPartDrag(part: Part) {
     dispatch({ type: 'SELECT', id: part.id })
@@ -142,9 +139,26 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     if (draggingEndpoint && dragWireOriginal) {
       setDragWirePoints(resizeWirePoints(dragWireOriginal.points, draggingEndpoint.endpoint, point))
     }
+    // A brand-new part/wire being dragged in from the palette (pointer-based,
+    // not HTML5 drag-and-drop, so it works on touch/tablet too) — just needs
+    // the WYSIWYG hover preview kept in sync with the pointer.
+    if (draggingKind) {
+      setHoverPoint(point)
+    }
   }
 
   function handlePointerUp() {
+    if (draggingKind) {
+      if (hoverPoint) {
+        if (draggingKind === 'wire') {
+          dispatch({ type: 'ADD_WIRE', origin: hoverPoint })
+        } else {
+          dispatch({ type: 'ADD_PART', kind: draggingKind, origin: hoverPoint })
+        }
+      }
+      setHoverPoint(null)
+      return
+    }
     if (overDeleteZone) {
       if (draggingPartId) dispatch({ type: 'REMOVE_PART', id: draggingPartId })
       else if (draggingWireId) dispatch({ type: 'REMOVE_WIRE', id: draggingWireId })
@@ -198,11 +212,9 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       ref={svgRef}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       className="w-full h-auto max-w-full border border-slate-300 bg-slate-50 touch-none select-none"
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragLeave={() => setHoverPoint(null)}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerLeave={() => draggingKind && setHoverPoint(null)}
       onClick={handleCanvasClick}
     >
       <RealisticDefs />
@@ -217,8 +229,32 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
         const points = isBeingDragged ? dragWirePoints! : wire.points
         const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toPixel(p).x} ${toPixel(p).y}`).join(' ')
         const selected = state.selectedWireId === wire.id
+        // Flow current is only meaningful for the wire's committed geometry —
+        // skip arrows on the wire actively being reshaped mid-drag.
+        const unitPoints = !isBeingDragged ? expandWireToUnitPoints(wire) : null
         return (
           <g key={wire.id}>
+            {unitPoints &&
+              wireFlows
+                .filter((f) => f.wireId === wire.id && Math.abs(f.current) > FLOW_EPSILON)
+                .map((f) => {
+                  const p = unitPoints[f.index]
+                  const q = unitPoints[f.index + 1]
+                  const pPx = toPixel(p)
+                  const qPx = toPixel(q)
+                  const forward = f.current > 0
+                  const flowsPToQ = state.flowDisplay === 'current' ? forward : !forward
+                  const [fromPx, toPx] = flowsPToQ ? [pPx, qPx] : [qPx, pPx]
+                  const angle = (Math.atan2(toPx.y - fromPx.y, toPx.x - fromPx.x) * 180) / Math.PI
+                  return (
+                    <WireFlowArrow
+                      key={`${wire.id}-f${f.index}`}
+                      x={(pPx.x + qPx.x) / 2}
+                      y={(pPx.y + qPx.y) / 2}
+                      angle={angle}
+                    />
+                  )
+                })}
             <path
               d={d}
               fill="none"

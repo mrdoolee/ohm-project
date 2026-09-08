@@ -15,7 +15,8 @@ const BULB_REFERENCE_CURRENT = 1 // amps treated as "100% brightness" for the vi
 export type DisplayMode = 'realistic' | 'schematic'
 export type FlowDisplay = 'current' | 'electron'
 
-const FLOW_EPSILON = 1e-6
+export const FLOW_EPSILON = 1e-6
+export const FLOW_ARROW_COLOR = '#ea580c'
 
 interface PartSymbolProps {
   part: Part
@@ -32,7 +33,7 @@ function FlowArrow({ cx, pointsRight }: { cx: number; pointsRight: boolean }) {
   const points = pointsRight
     ? `${cx - 4},-3.5 ${cx - 4},3.5 ${cx + 4},0`
     : `${cx + 4},-3.5 ${cx + 4},3.5 ${cx - 4},0`
-  return <polygon points={points} fill="#ea580c" />
+  return <polygon points={points} fill={FLOW_ARROW_COLOR} />
 }
 
 interface LabelProps {
