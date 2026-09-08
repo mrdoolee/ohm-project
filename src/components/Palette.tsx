@@ -19,7 +19,7 @@ const PALETTE_ITEMS: { kind: PartKind | 'wire'; label: string }[] = [
   { kind: 'ammeter', label: '전류계' },
 ]
 
-function PaletteThumbnail({ kind }: { kind: PartKind | 'wire' }) {
+export function PaletteThumbnail({ kind }: { kind: PartKind | 'wire' }) {
   return (
     <svg viewBox="0 0 40 40" className="w-9 h-9 shrink-0">
       <g transform="translate(0,20)" className="text-slate-800">
