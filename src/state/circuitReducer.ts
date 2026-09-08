@@ -55,7 +55,7 @@ function clampWireOrigin(origin: GridPoint): GridPoint {
 }
 
 /** Axis-locks `point` relative to `fixed` (the endpoint that stays put), like every other wire segment: horizontal or vertical only, never diagonal. */
-function axisLock(point: GridPoint, fixed: GridPoint): GridPoint {
+export function axisLock(point: GridPoint, fixed: GridPoint): GridPoint {
   const dCol = Math.abs(point.col - fixed.col)
   const dRow = Math.abs(point.row - fixed.row)
   return dCol >= dRow ? { col: point.col, row: fixed.row } : { col: fixed.col, row: point.row }

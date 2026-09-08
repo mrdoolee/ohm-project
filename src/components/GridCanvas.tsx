@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { useCircuit } from '../state/CircuitContext'
 import { CELL, GRID_COLS, GRID_ROWS, clampToGrid, nearestGridPoint, pointKey, toPixel, type GridPoint } from '../domain/grid'
 import { clampOriginForRotation, partTerminals, type Part, type PartKind } from '../domain/parts'
-import type { WireEndpoint } from '../state/circuitReducer'
+import type { Wire } from '../domain/wires'
+import { axisLock, type WireEndpoint } from '../state/circuitReducer'
 import { PartSymbol } from './parts/PartSymbol'
 import { RealisticDefs } from './parts/realisticGlyphs'
 
@@ -13,7 +14,7 @@ const HEIGHT = GRID_ROWS * CELL
 // back on the grid) deletes it. Lives in the same SVG pixel space as
 // everything else, so hit-testing is plain coordinate math — no cross-
 // component DOM lookups needed.
-const DELETE_ZONE = { x: 4, y: 4, width: CELL * 2 - 8, height: CELL * 2 - 8 }
+const DELETE_ZONE = { x: 4, y: 4, width: CELL * 2 - 8, height: CELL - 8 }
 
 function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: number): GridPoint {
   const rect = svg.getBoundingClientRect()
@@ -39,6 +40,24 @@ function isInDeleteZone(x: number, y: number): boolean {
   )
 }
 
+function translateWirePoints(points: GridPoint[], target: GridPoint): GridPoint[] {
+  const first = points[0]
+  const dCol = target.col - first.col
+  const dRow = target.row - first.row
+  return points.map((p) => clampToGrid({ col: p.col + dCol, row: p.row + dRow }))
+}
+
+function resizeWirePoints(points: GridPoint[], endpoint: WireEndpoint, target: GridPoint): GridPoint[] {
+  const isStart = endpoint === 'start'
+  const neighborIndex = isStart ? 1 : points.length - 2
+  const neighbor = points[neighborIndex]
+  const resolved = axisLock(clampToGrid(target), neighbor)
+  if (resolved.col === neighbor.col && resolved.row === neighbor.row) return points // no zero-length segment
+  const next = [...points]
+  next[isStart ? 0 : points.length - 1] = resolved
+  return next
+}
+
 interface GridCanvasProps {
   draggingKind: PartKind | 'wire' | null
 }
@@ -47,9 +66,18 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
   const { state, dispatch, solution } = useCircuit()
   const svgRef = useRef<SVGSVGElement>(null)
   const [hoverPoint, setHoverPoint] = useState<GridPoint | null>(null)
+
+  // While dragging, the moved/resized geometry lives only in this local state —
+  // never dispatched to the reducer until the pointer is released. Dispatching
+  // on every pointermove would recompute the whole circuit (and re-render every
+  // consumer of useCircuit()) on every pixel of mouse movement, which is what
+  // made dragging feel like it was lagging a step behind the cursor.
   const [draggingPartId, setDraggingPartId] = useState<string | null>(null)
+  const [dragPartOrigin, setDragPartOrigin] = useState<GridPoint | null>(null)
   const [draggingWireId, setDraggingWireId] = useState<string | null>(null)
   const [draggingEndpoint, setDraggingEndpoint] = useState<{ id: string; endpoint: WireEndpoint } | null>(null)
+  const [dragWireOriginal, setDragWireOriginal] = useState<Wire | null>(null)
+  const [dragWirePoints, setDragWirePoints] = useState<GridPoint[] | null>(null)
   const [overDeleteZone, setOverDeleteZone] = useState(false)
 
   function handleDragOver(e: React.DragEvent<SVGSVGElement>) {
@@ -74,6 +102,26 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     dispatch({ type: 'ADD_PART', kind, origin: point })
   }
 
+  function startPartDrag(part: Part) {
+    dispatch({ type: 'SELECT', id: part.id })
+    setDraggingPartId(part.id)
+    setDragPartOrigin(part.origin)
+  }
+
+  function startWireBodyDrag(wire: Wire) {
+    dispatch({ type: 'SELECT_WIRE', id: wire.id })
+    setDraggingWireId(wire.id)
+    setDragWireOriginal(wire)
+    setDragWirePoints(wire.points)
+  }
+
+  function startWireEndpointDrag(wire: Wire, endpoint: WireEndpoint) {
+    dispatch({ type: 'SELECT_WIRE', id: wire.id })
+    setDraggingEndpoint({ id: wire.id, endpoint })
+    setDragWireOriginal(wire)
+    setDragWirePoints(wire.points)
+  }
+
   function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return
     const isDraggingSomething = draggingPartId || draggingWireId || draggingEndpoint
@@ -85,13 +133,14 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     }
     const point = clientToGrid(svgRef.current, e.clientX, e.clientY)
     if (draggingPartId) {
-      dispatch({ type: 'MOVE_PART', id: draggingPartId, origin: point })
+      const part = state.parts.find((p) => p.id === draggingPartId)
+      if (part) setDragPartOrigin(clampOriginForRotation(point, part.rotation))
     }
-    if (draggingWireId) {
-      dispatch({ type: 'MOVE_WIRE', id: draggingWireId, origin: point })
+    if (draggingWireId && dragWireOriginal) {
+      setDragWirePoints(translateWirePoints(dragWireOriginal.points, point))
     }
-    if (draggingEndpoint) {
-      dispatch({ type: 'RESIZE_WIRE_ENDPOINT', id: draggingEndpoint.id, endpoint: draggingEndpoint.endpoint, point })
+    if (draggingEndpoint && dragWireOriginal) {
+      setDragWirePoints(resizeWirePoints(dragWireOriginal.points, draggingEndpoint.endpoint, point))
     }
   }
 
@@ -100,10 +149,25 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       if (draggingPartId) dispatch({ type: 'REMOVE_PART', id: draggingPartId })
       else if (draggingWireId) dispatch({ type: 'REMOVE_WIRE', id: draggingWireId })
       else if (draggingEndpoint) dispatch({ type: 'REMOVE_WIRE', id: draggingEndpoint.id })
+    } else {
+      if (draggingPartId && dragPartOrigin) {
+        dispatch({ type: 'MOVE_PART', id: draggingPartId, origin: dragPartOrigin })
+      }
+      if (draggingWireId && dragWirePoints) {
+        dispatch({ type: 'MOVE_WIRE', id: draggingWireId, origin: dragWirePoints[0] })
+      }
+      if (draggingEndpoint && dragWirePoints) {
+        const isStart = draggingEndpoint.endpoint === 'start'
+        const point = dragWirePoints[isStart ? 0 : dragWirePoints.length - 1]
+        dispatch({ type: 'RESIZE_WIRE_ENDPOINT', id: draggingEndpoint.id, endpoint: draggingEndpoint.endpoint, point })
+      }
     }
     setDraggingPartId(null)
+    setDragPartOrigin(null)
     setDraggingWireId(null)
     setDraggingEndpoint(null)
+    setDragWireOriginal(null)
+    setDragWirePoints(null)
     setOverDeleteZone(false)
   }
 
@@ -111,9 +175,6 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
     dispatch({ type: 'SELECT', id: null })
     dispatch({ type: 'SELECT_WIRE', id: null })
   }
-
-  const draggingPart = state.parts.find((p) => p.id === draggingPartId)
-  const previewOrigin = draggingPart && hoverPoint ? clampOriginForRotation(hoverPoint, draggingPart.rotation) : null
 
   // WYSIWYG preview of a brand-new part/wire being dragged in from the palette —
   // shown at the exact spot and footprint it will actually land on, so there's
@@ -152,7 +213,9 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       })}
 
       {state.wires.map((wire) => {
-        const d = wire.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toPixel(p).x} ${toPixel(p).y}`).join(' ')
+        const isBeingDragged = (wire.id === draggingWireId || wire.id === draggingEndpoint?.id) && dragWirePoints
+        const points = isBeingDragged ? dragWirePoints! : wire.points
+        const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toPixel(p).x} ${toPixel(p).y}`).join(' ')
         const selected = state.selectedWireId === wire.id
         return (
           <g key={wire.id}>
@@ -164,8 +227,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
               className="cursor-move"
               onPointerDown={(e) => {
                 e.stopPropagation()
-                dispatch({ type: 'SELECT_WIRE', id: wire.id })
-                setDraggingWireId(wire.id)
+                startWireBodyDrag(wire)
               }}
               onClick={(e) => e.stopPropagation()}
             />
@@ -178,7 +240,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
             />
             {selected &&
               (['start', 'end'] as const).map((endpoint) => {
-                const p = endpoint === 'start' ? wire.points[0] : wire.points[wire.points.length - 1]
+                const p = endpoint === 'start' ? points[0] : points[points.length - 1]
                 const { x, y } = toPixel(p)
                 return (
                   <circle
@@ -190,8 +252,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
                     strokeWidth={2}
                     onPointerDown={(e) => {
                       e.stopPropagation()
-                      dispatch({ type: 'SELECT_WIRE', id: wire.id })
-                      setDraggingEndpoint({ id: wire.id, endpoint })
+                      startWireEndpointDrag(wire, endpoint)
                     }}
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -202,15 +263,14 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       })}
 
       {state.parts.map((part) => {
-        const isDragging = part.id === draggingPartId
-        const renderPart = isDragging && previewOrigin ? { ...part, origin: previewOrigin } : part
+        const isDragging = part.id === draggingPartId && dragPartOrigin
+        const renderPart = isDragging ? { ...part, origin: dragPartOrigin! } : part
         return (
           <g
             key={part.id}
             onPointerDown={(e) => {
               e.stopPropagation()
-              dispatch({ type: 'SELECT', id: part.id })
-              setDraggingPartId(part.id)
+              startPartDrag(part)
             }}
           >
             <PartSymbol
@@ -226,7 +286,9 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
       })}
 
       {state.parts.map((part) => {
-        const { a, b } = partTerminals(part)
+        const isDragging = part.id === draggingPartId && dragPartOrigin
+        const renderPart = isDragging ? { ...part, origin: dragPartOrigin! } : part
+        const { a, b } = partTerminals(renderPart)
         return [a, b].map((p, i) => {
           const { x, y } = toPixel(p)
           return <circle key={`${part.id}-t${i}`} cx={x} cy={y} r={2.5} className="fill-emerald-600" />
@@ -247,7 +309,7 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
           strokeDasharray="6 4"
         />
         <g
-          transform={`translate(${DELETE_ZONE.x + DELETE_ZONE.width / 2}, ${DELETE_ZONE.y + DELETE_ZONE.height / 2 - 8})`}
+          transform={`translate(${DELETE_ZONE.x + 16}, ${DELETE_ZONE.y + DELETE_ZONE.height / 2}) scale(0.6)`}
           stroke={overDeleteZone ? '#dc2626' : '#94a3b8'}
           strokeWidth={2}
           fill="none"
@@ -259,10 +321,10 @@ export function GridCanvas({ draggingKind }: GridCanvasProps) {
           <line x1={4} y1={0} x2={4} y2={8} />
         </g>
         <text
-          x={DELETE_ZONE.x + DELETE_ZONE.width / 2}
-          y={DELETE_ZONE.y + DELETE_ZONE.height - 8}
+          x={DELETE_ZONE.x + 30}
+          y={DELETE_ZONE.y + DELETE_ZONE.height / 2 + 4}
           fontSize={11}
-          textAnchor="middle"
+          textAnchor="start"
           fill={overDeleteZone ? '#dc2626' : '#64748b'}
         >
           삭제
