@@ -38,7 +38,8 @@ describe('buildCircuitEdges', () => {
 
     const result = solveCircuit(buildCircuitEdges(parts, wires))
     expect(result.status).toBe('ok')
-    expect(result.components.r1.current).toBeCloseTo(0.9)
+    // batt.b(+) feeds r1.b through the bottom wire, so current runs r1.b -> r1.a: negative in a->b terms.
+    expect(result.components.r1.current).toBeCloseTo(-0.9)
   })
 
   test('two independent wires crossing connect automatically, same as any other shared point', () => {
@@ -81,6 +82,7 @@ describe('buildCircuitEdges', () => {
 
     const result = solveCircuit(edges)
     expect(result.status).toBe('ok')
-    expect(result.components.r1.current).toBeCloseTo(0.45) // 9V / 20ohm
+    // 9V / 20ohm, entering r1 at its b terminal (return wire arrives from the right): b -> a, negative.
+    expect(result.components.r1.current).toBeCloseTo(-0.45)
   })
 })

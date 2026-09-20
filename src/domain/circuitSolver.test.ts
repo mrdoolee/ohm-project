@@ -155,4 +155,19 @@ describe('solveCircuit - a dangling branch must not zero out an otherwise-closed
     expect(result.components.bulb2.voltage).toBeCloseTo(9)
     expect(result.components.bulb1.current).toBeCloseTo(0)
   })
+
+  test("reported current is signed relative to each part's own nodeA -> nodeB, not the loop traversal direction", () => {
+    // Battery rises n1 -> n2, so conventional current leaves n2. r1 is wired
+    // with its nodeA on n1, i.e. current enters r1 at its nodeB: r1 is negative.
+    // r2 is wired the other way round (nodeA on n2): positive.
+    const result = solveCircuit([
+      { id: 'batt', kind: 'battery', nodeA: 'n1', nodeB: 'n2', resistance: 0, emf: 9, closed: true },
+      { id: 'r1', kind: 'resistor', nodeA: 'n1', nodeB: 'n3', resistance: 10, emf: 0, closed: true },
+      { id: 'r2', kind: 'resistor', nodeA: 'n2', nodeB: 'n3', resistance: 20, emf: 0, closed: true },
+    ])
+    expect(result.status).toBe('ok')
+    expect(result.components.batt.current).toBeCloseTo(0.3)
+    expect(result.components.r2.current).toBeCloseTo(0.3)
+    expect(result.components.r1.current).toBeCloseTo(-0.3)
+  })
 })

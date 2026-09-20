@@ -48,13 +48,13 @@ export function RealisticBattery({ value }: { value: number }) {
       <rect x={CELL * 0.1} y={-13} width={CELL * 0.8} height={26} rx={6} fill="url(#rg-battery-body)" stroke="#475569" strokeWidth={1.5} />
       <rect x={CELL * 0.82} y={-6} width={CELL * 0.08} height={12} rx={2} fill="#d4a017" />
       <rect x={CELL * 0.2} y={-13} width={CELL * 0.5} height={26} fill={value >= 9 ? '#f59e0b' : '#38bdf8'} opacity={0.85} />
-      <text x={CELL * 0.45} y={4} fontSize={9} fontWeight={700} textAnchor="middle" className="fill-white">
+      <text x={CELL * 0.45} y={4} fontSize={9} fontWeight={700} textAnchor="middle" className="svg-white">
         {value}V
       </text>
-      <text x={CELL * 0.86} y={-16} fontSize={10} textAnchor="middle" className="fill-red-600" fontWeight={700}>
+      <text x={CELL * 0.86} y={-16} fontSize={10} textAnchor="middle" className="svg-plus" fontWeight={700}>
         +
       </text>
-      <text x={CELL * 0.08} y={-16} fontSize={10} textAnchor="middle" className="fill-slate-700" fontWeight={700}>
+      <text x={CELL * 0.08} y={-16} fontSize={10} textAnchor="middle" className="svg-ink" fontWeight={700}>
         -
       </text>
     </g>
@@ -70,7 +70,7 @@ export function RealisticRheostat({ value }: { value: number }) {
   return (
     <g>
       <rect x={CELL * 0.12} y={-11} width={CELL * 0.76} height={22} rx={5} fill="url(#rg-resistor-body)" stroke="#8a6d3b" strokeWidth={1} />
-      <text x={CELL / 2} y={26} fontSize={9} textAnchor="middle" className="fill-slate-600">
+      <text x={CELL / 2} y={26} fontSize={9} textAnchor="middle" className="svg-ink-soft">
         {value}Ω
       </text>
       {Array.from({ length: 8 }).map((_, i) => (
@@ -98,7 +98,7 @@ export function RealisticBulb({ current }: { current: number }) {
         stroke={brightness > 0.05 ? '#f59e0b' : '#94a3b8'}
         strokeWidth={1.3}
       />
-      <text x={CELL / 2} y={32} fontSize={11} textAnchor="middle" fontWeight={600} className="fill-amber-700">
+      <text x={CELL / 2} y={32} fontSize={11} textAnchor="middle" fontWeight={600} className="svg-ink">
         {Math.round(brightness * 100)}%
       </text>
     </g>
@@ -119,7 +119,7 @@ export function RealisticSwitch({ closed }: { closed: boolean }) {
         strokeWidth={4}
         strokeLinecap="round"
       />
-      <text x={CELL / 2} y={26} fontSize={10} textAnchor="middle" className="fill-slate-600">
+      <text x={CELL / 2} y={26} fontSize={10} textAnchor="middle" className="svg-ink-soft">
         {closed ? 'ON' : 'OFF'}
       </text>
     </g>
@@ -155,10 +155,10 @@ export function RealisticMeter({ kind, reading }: { kind: 'V' | 'A'; reading: nu
         transform={`rotate(${angle} ${CELL / 2} 0)`}
       />
       <circle cx={CELL / 2} cy={0} r={2} fill="#1e293b" />
-      <text x={CELL / 2} y={9} fontSize={9} textAnchor="middle" fontWeight={700} className="fill-slate-500">
+      <text x={CELL / 2} y={9} fontSize={9} textAnchor="middle" fontWeight={700} className="svg-ink-soft">
         {kind}
       </text>
-      <text x={CELL / 2} y={26} fontSize={10} textAnchor="middle" fontWeight={600} className="fill-blue-700">
+      <text x={CELL / 2} y={26} fontSize={10} textAnchor="middle" fontWeight={600} className="svg-unit">
         {reading.toFixed(2)}
         {kind}
       </text>

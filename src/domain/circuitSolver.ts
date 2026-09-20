@@ -116,26 +116,36 @@ function assignZero(tree: EdgeTree, results: Record<string, ComponentResult>) {
   for (const c of tree.children) assignZero(c.tree, results)
 }
 
+/**
+ * `current` handed down the tree is always measured along the *traversal*
+ * direction of the edge it's attached to — and series/parallel merging may
+ * have flipped a leaf (swapping its nodeA/nodeB) to line it up with that
+ * traversal. A leaf's reported current must be relative to the *original*
+ * part's terminals (positive = original nodeA -> nodeB), so it's sign-corrected
+ * here by comparing the possibly-flipped leaf against the original nodeA.
+ */
 function solveTree(
   edge: WEdge,
   current: number,
   potA: number,
   results: Record<string, ComponentResult>,
   potentials: Map<string, number>,
+  originalNodeA: Map<string, string>,
 ) {
   const potB = potA + edge.emf - current * edge.resistance
   potentials.set(edge.nodeA, potA)
   potentials.set(edge.nodeB, potB)
 
   if (edge.tree.kind === 'leaf') {
-    results[edge.tree.id] = { id: edge.tree.id, current, voltage: Math.abs(potB - potA) }
+    const flipped = edge.nodeA !== originalNodeA.get(edge.tree.id) && edge.nodeA !== edge.nodeB
+    results[edge.tree.id] = { id: edge.tree.id, current: flipped ? -current : current, voltage: Math.abs(potB - potA) }
     return
   }
 
   if (edge.tree.kind === 'series') {
     let pot = potA
     for (const child of edge.tree.children) {
-      solveTree(child, current, pot, results, potentials)
+      solveTree(child, current, pot, results, potentials, originalNodeA)
       pot = pot + child.emf - current * child.resistance
     }
     return
@@ -145,12 +155,12 @@ function solveTree(
   if (edge.resistance === 0) {
     const zeroIdx = edge.tree.children.findIndex((c) => c.resistance === 0)
     edge.tree.children.forEach((child, idx) => {
-      solveTree(child, idx === zeroIdx ? current : 0, potA, results, potentials)
+      solveTree(child, idx === zeroIdx ? current : 0, potA, results, potentials, originalNodeA)
     })
   } else {
     for (const child of edge.tree.children) {
       const childCurrent = (potA + child.emf - potB) / child.resistance
-      solveTree(child, childCurrent, potA, results, potentials)
+      solveTree(child, childCurrent, potA, results, potentials, originalNodeA)
     }
   }
 }
@@ -182,6 +192,7 @@ const STATUS_SEVERITY: Record<CircuitStatus, number> = { ok: 0, open: 1, unsuppo
 export function solveCircuit(edges: CircuitEdge[]): SolveResult {
   const results: Record<string, ComponentResult> = {}
   const potentials = new Map<string, number>()
+  const originalNodeA = new Map(edges.map((e) => [e.id, e.nodeA] as const))
   const batteryIds = new Set(edges.filter((e) => e.kind === 'battery').map((e) => e.id))
 
   const graphEdges: WEdge[] = edges
@@ -226,7 +237,7 @@ export function solveCircuit(edges: CircuitEdge[]): SolveResult {
       } else {
         const rawCurrent = loop.emf / loop.resistance
         const orientedLoop = rawCurrent < 0 ? flip(loop) : loop
-        solveTree(orientedLoop, Math.abs(rawCurrent), 0, results, potentials)
+        solveTree(orientedLoop, Math.abs(rawCurrent), 0, results, potentials, originalNodeA)
       }
     }
 

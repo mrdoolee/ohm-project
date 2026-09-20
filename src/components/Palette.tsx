@@ -21,13 +21,13 @@ const PALETTE_ITEMS: { kind: PartKind | 'wire'; label: string }[] = [
 
 export function PaletteThumbnail({ kind }: { kind: PartKind | 'wire' }) {
   return (
-    <svg viewBox="0 0 40 40" className="w-9 h-9 shrink-0">
-      <g transform="translate(0,20)" className="text-slate-800">
+    <svg viewBox="0 0 40 40" className="thumb" aria-hidden="true">
+      <g transform="translate(0,20)" className="part">
         {kind === 'wire' && (
           <>
-            <line x1={4} y1={0} x2={36} y2={0} stroke="#334155" strokeWidth={3} strokeLinecap="round" />
-            <circle cx={4} cy={0} r={2.5} fill="#16a34a" />
-            <circle cx={36} cy={0} r={2.5} fill="#16a34a" />
+            <line x1={4} y1={0} x2={36} y2={0} stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
+            <circle cx={4} cy={0} r={2.5} className="svg-ink" />
+            <circle cx={36} cy={0} r={2.5} className="svg-ink" />
           </>
         )}
         {kind === 'battery' && <RealisticBattery value={9} />}
@@ -48,22 +48,23 @@ interface PaletteProps {
 
 export function Palette({ onDragStart }: PaletteProps) {
   return (
-    <div className="flex flex-col gap-2 p-3 bg-white border border-slate-300 rounded-lg w-44">
-      <h2 className="text-sm font-semibold text-slate-700 mb-1">부품 팔레트</h2>
-      {PALETTE_ITEMS.map((item) => (
-        <div
-          key={item.kind}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            onDragStart(item.kind)
-          }}
-          className="touch-none select-none cursor-grab active:cursor-grabbing flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
-        >
-          <PaletteThumbnail kind={item.kind} />
-          {item.label}
-        </div>
-      ))}
-      <p className="text-xs text-slate-500 mt-1">캔버스로 드래그해서 배치하세요.</p>
-    </div>
+    <section className="palette" aria-label="부품 칸">
+      <h2>부품 칸</h2>
+      <div className="palette-list">
+        {PALETTE_ITEMS.map((item) => (
+          <div
+            key={item.kind}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              onDragStart(item.kind)
+            }}
+            className="palette-item"
+          >
+            <PaletteThumbnail kind={item.kind} />
+            {item.label}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

@@ -5,16 +5,15 @@ import { clampOriginForRotation, partTerminals, type Part, type PartKind } from 
 import { expandWireToUnitPoints, type Wire } from '../domain/wires'
 import { computeWireSegmentFlows } from '../domain/wireFlow'
 import { axisLock, type WireEndpoint } from '../state/circuitReducer'
-import { FLOW_ARROW_COLOR, FLOW_EPSILON } from './parts/PartSymbol'
-import { PartSymbol } from './parts/PartSymbol'
+import { FLOW_EPSILON, PartSymbol, flowArrowColor } from './parts/PartSymbol'
 import { RealisticDefs } from './parts/realisticGlyphs'
 
 /** Small filled triangle centered at (x,y), pointing toward angle degrees (0 = +x). */
-function WireFlowArrow({ x, y, angle }: { x: number; y: number; angle: number }) {
+function WireFlowArrow({ x, y, angle, color }: { x: number; y: number; angle: number; color: string }) {
   return (
     <polygon
       points="-4,-3.5 -4,3.5 4,0"
-      fill={FLOW_ARROW_COLOR}
+      style={{ fill: color }}
       transform={`translate(${x},${y}) rotate(${angle})`}
       pointerEvents="none"
     />
@@ -232,7 +231,9 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     <svg
       ref={svgRef}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      className="w-full h-auto max-w-full border border-slate-300 bg-slate-50 touch-none select-none"
+      className="canvas"
+      role="group"
+      aria-label="회로 격자 캔버스. 부품과 전선을 끌어서 옮기고 이어 붙입니다."
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onClick={handleCanvasClick}
@@ -241,7 +242,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       {gridDots.map(({ col, row }) => {
         const { x, y } = toPixel({ col, row })
         const key = pointKey({ col, row })
-        return <circle key={key} cx={x} cy={y} r={1.5} className="fill-slate-300" />
+        return <circle key={key} cx={x} cy={y} r={1.5} className="grid-dot" />
       })}
 
       {state.wires.map((wire) => {
@@ -272,6 +273,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
                       x={(pPx.x + qPx.x) / 2}
                       y={(pPx.y + qPx.y) / 2}
                       angle={angle}
+                      color={flowArrowColor(state.flowDisplay)}
                     />
                   )
                 })}
@@ -280,7 +282,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
               fill="none"
               stroke="transparent"
               strokeWidth={16}
-              className="cursor-move"
+              className="wire-hit"
               onPointerDown={(e) => {
                 e.stopPropagation()
                 startWireBodyDrag(wire)
@@ -289,9 +291,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
             />
             <path
               d={d}
-              fill="none"
-              stroke={selected ? '#2563eb' : '#334155'}
-              strokeWidth={selected ? 4 : 2.5}
+              className={selected ? 'wire-line is-selected' : 'wire-line'}
               pointerEvents="none"
             />
             {selected &&
@@ -304,8 +304,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
                     cx={x}
                     cy={y}
                     r={6}
-                    className="fill-white stroke-blue-600 cursor-pointer"
-                    strokeWidth={2}
+                    className="wire-handle"
                     onPointerDown={(e) => {
                       e.stopPropagation()
                       startWireEndpointDrag(wire, endpoint)
@@ -348,28 +347,23 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         const { a, b } = partTerminals(renderPart)
         return [a, b].map((p, i) => {
           const { x, y } = toPixel(p)
-          return <circle key={`${part.id}-t${i}`} cx={x} cy={y} r={2.5} className="fill-emerald-600" />
+          return <circle key={`${part.id}-t${i}`} cx={x} cy={y} r={2.5} className="terminal-dot" />
         })
       })}
 
       {/* Trash corner: drag a part/wire here to delete it. */}
-      <g pointerEvents="none">
+      <g pointerEvents="none" className={overDeleteZone ? 'is-over' : undefined}>
         <rect
+          className="trash-box"
           x={DELETE_ZONE.x}
           y={DELETE_ZONE.y}
           width={DELETE_ZONE.width}
           height={DELETE_ZONE.height}
           rx={8}
-          fill={overDeleteZone ? '#fee2e2' : '#f8fafc'}
-          stroke={overDeleteZone ? '#dc2626' : '#cbd5e1'}
-          strokeWidth={2}
-          strokeDasharray="6 4"
         />
         <g
           transform={`translate(${DELETE_ZONE.x + 16}, ${DELETE_ZONE.y + DELETE_ZONE.height / 2}) scale(0.6)`}
-          stroke={overDeleteZone ? '#dc2626' : '#94a3b8'}
-          strokeWidth={2}
-          fill="none"
+          className="trash-icon"
         >
           <rect x={-9} y={-4} width={18} height={16} rx={1.5} />
           <line x1={-12} y1={-4} x2={12} y2={-4} />
@@ -380,9 +374,8 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         <text
           x={DELETE_ZONE.x + 30}
           y={DELETE_ZONE.y + DELETE_ZONE.height / 2 + 4}
-          fontSize={11}
+          className="trash-text"
           textAnchor="start"
-          fill={overDeleteZone ? '#dc2626' : '#64748b'}
         >
           삭제
         </text>
@@ -409,11 +402,10 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
             y1={toPixel(newDropOrigin).y}
             x2={toPixel(previewWireEnd).x}
             y2={toPixel(previewWireEnd).y}
-            stroke="#334155"
-            strokeWidth={2.5}
+            className="preview-line"
           />
-          <circle cx={toPixel(newDropOrigin).x} cy={toPixel(newDropOrigin).y} r={4} fill="#16a34a" />
-          <circle cx={toPixel(previewWireEnd).x} cy={toPixel(previewWireEnd).y} r={4} fill="#16a34a" />
+          <circle cx={toPixel(newDropOrigin).x} cy={toPixel(newDropOrigin).y} r={4} className="preview-dot" />
+          <circle cx={toPixel(previewWireEnd).x} cy={toPixel(previewWireEnd).y} r={4} className="preview-dot" />
         </g>
       )}
     </svg>

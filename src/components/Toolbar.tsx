@@ -2,118 +2,175 @@ import { useState } from 'react'
 import { MAX_PARTS } from '../domain/grid'
 import { useCircuit } from '../state/CircuitContext'
 
-const STATUS_TEXT: Record<string, { text: string; className: string } | undefined> = {
-  short: { text: '⚠ 단락 경고: 저항 없이 전지 양단이 직결되었습니다. 배선을 확인하세요.', className: 'bg-red-100 text-red-800 border-red-300' },
-  unsupported: { text: '이 회로 구성은 지원하지 않습니다 (다중 루프). 직렬/병렬 조합만 가능합니다.', className: 'bg-amber-100 text-amber-800 border-amber-300' },
-  open: { text: '개회로 상태입니다. 모든 계기가 0을 표시합니다.', className: 'bg-slate-100 text-slate-700 border-slate-300' },
+/** 전역 버튼: 캔버스를 비우고 다시 시작 (확인 단계 유지). */
+export function ResetButton() {
+  const { dispatch } = useCircuit()
+  const [confirming, setConfirming] = useState(false)
+
+  if (confirming) {
+    return (
+      <div className="lead-side">
+        <span className="reset-ask">정말 다시 할까요?</span>
+        <button
+          type="button"
+          className="btn-pop"
+          onClick={() => {
+            dispatch({ type: 'LOAD', parts: [], wires: [] })
+            setConfirming(false)
+          }}
+        >
+          다시 하기
+        </button>
+        <button type="button" className="btn-pop" onClick={() => setConfirming(false)}>
+          취소
+        </button>
+      </div>
+    )
+  }
+  return (
+    <button type="button" className="btn-pop" onClick={() => setConfirming(true)}>
+      다시 하기
+    </button>
+  )
 }
 
-export function Toolbar() {
-  const { state, dispatch, solution } = useCircuit()
-  const [confirmingReset, setConfirmingReset] = useState(false)
+/** 상단 한 줄: 묶음 선택 버튼 두 그룹과 부품 조작 버튼. */
+export function StepsBar() {
+  const { state, dispatch } = useCircuit()
   const selected = state.parts.find((p) => p.id === state.selectedId)
   const selectedWire = state.wires.find((w) => w.id === state.selectedWireId)
-  const banner = STATUS_TEXT[solution.status]
-  const messageText = state.limitWarning ? `부품은 최대 ${MAX_PARTS}개까지 배치할 수 있습니다.` : banner?.text
-  const messageClass = state.limitWarning
-    ? 'bg-amber-100 text-amber-800 border-amber-300'
-    : (banner?.className ?? 'border-transparent')
+
+  const seg = (active: boolean) => `seg-btn${active ? ' is-active' : ''}`
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 p-2 bg-white border border-slate-300 rounded-lg">
+    <div className="steps">
+      <div className="seg" role="group" aria-label="부품 그림 보기">
         <button
           type="button"
-          disabled={!selected}
-          onClick={() => selected && dispatch({ type: 'ROTATE_PART', id: selected.id })}
-          className="px-3 py-1.5 text-sm rounded-md border border-slate-300 disabled:opacity-40 hover:bg-slate-100"
+          aria-pressed={state.displayMode === 'realistic'}
+          onClick={() => dispatch({ type: 'SET_DISPLAY_MODE', mode: 'realistic' })}
+          className={seg(state.displayMode === 'realistic')}
         >
-          회전 (90°)
+          실물 이미지
         </button>
         <button
           type="button"
-          disabled={!selected && !selectedWire}
-          onClick={() => {
-            if (selected) dispatch({ type: 'REMOVE_PART', id: selected.id })
-            else if (selectedWire) dispatch({ type: 'REMOVE_WIRE', id: selectedWire.id })
-          }}
-          className="px-3 py-1.5 text-sm rounded-md border border-slate-300 disabled:opacity-40 hover:bg-slate-100"
+          aria-pressed={state.displayMode === 'schematic'}
+          onClick={() => dispatch({ type: 'SET_DISPLAY_MODE', mode: 'schematic' })}
+          className={seg(state.displayMode === 'schematic')}
         >
-          삭제
+          회로 기호
         </button>
-        <div className="w-px h-6 bg-slate-300 mx-1" />
-        <div className="flex rounded-md border border-slate-300 overflow-hidden text-sm">
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_DISPLAY_MODE', mode: 'realistic' })}
-            className={`px-3 py-1.5 ${state.displayMode === 'realistic' ? 'bg-blue-600 text-white' : 'hover:bg-slate-100'}`}
-          >
-            실물 이미지
-          </button>
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_DISPLAY_MODE', mode: 'schematic' })}
-            className={`px-3 py-1.5 ${state.displayMode === 'schematic' ? 'bg-blue-600 text-white' : 'hover:bg-slate-100'}`}
-          >
-            회로 기호
-          </button>
-        </div>
-        <div className="w-px h-6 bg-slate-300 mx-1" />
-        <div className="flex rounded-md border border-slate-300 overflow-hidden text-sm">
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'current' })}
-            className={`px-3 py-1.5 ${state.flowDisplay === 'current' ? 'bg-orange-600 text-white' : 'hover:bg-slate-100'}`}
-          >
-            전류 방향
-          </button>
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'electron' })}
-            className={`px-3 py-1.5 ${state.flowDisplay === 'electron' ? 'bg-orange-600 text-white' : 'hover:bg-slate-100'}`}
-          >
-            전자 방향
-          </button>
-        </div>
-        <div className="w-px h-6 bg-slate-300 mx-1" />
-        {confirmingReset ? (
-          <div className="flex items-center gap-1 text-sm">
-            <span className="text-slate-600">정말 초기화할까요?</span>
-            <button
-              type="button"
-              onClick={() => {
-                dispatch({ type: 'LOAD', parts: [], wires: [] })
-                setConfirmingReset(false)
-              }}
-              className="px-3 py-1.5 rounded-md border border-red-300 bg-red-600 text-white hover:bg-red-700"
-            >
-              초기화
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingReset(false)}
-              className="px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-100"
-            >
-              취소
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmingReset(true)}
-            className="px-3 py-1.5 text-sm rounded-md border border-red-300 text-red-700 hover:bg-red-50"
-          >
-            캔버스 초기화
-          </button>
-        )}
-        <div className="flex-1" />
-        <span className="text-xs text-slate-500">
-          부품 {state.parts.length} / {MAX_PARTS}
-        </span>
       </div>
-
-      {/* Fixed-height slot: always mounted so status changes during a drag never reflow the canvas below. */}
-      <div className={`min-h-[2.5rem] p-2 text-sm rounded-md border box-border ${messageClass}`}>{messageText ?? ' '}</div>
+      <div className="seg" role="group" aria-label="화살표 방향 보기">
+        <button
+          type="button"
+          aria-pressed={state.flowDisplay === 'current'}
+          onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'current' })}
+          className={seg(state.flowDisplay === 'current')}
+        >
+          전류의 흐름 (+)
+        </button>
+        <button
+          type="button"
+          aria-pressed={state.flowDisplay === 'electron'}
+          onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'electron' })}
+          className={seg(state.flowDisplay === 'electron')}
+        >
+          전자의 흐름 (−)
+        </button>
+      </div>
+      <span className="steps-gap" />
+      <button
+        type="button"
+        disabled={!selected}
+        aria-label="선택한 부품을 90도 회전"
+        onClick={() => selected && dispatch({ type: 'ROTATE_PART', id: selected.id })}
+        className="step-tab"
+      >
+        회전
+      </button>
+      <button
+        type="button"
+        disabled={!selected && !selectedWire}
+        onClick={() => {
+          if (selected) dispatch({ type: 'REMOVE_PART', id: selected.id })
+          else if (selectedWire) dispatch({ type: 'REMOVE_WIRE', id: selectedWire.id })
+        }}
+        className="step-tab"
+      >
+        삭제
+      </button>
     </div>
+  )
+}
+
+/** 상태 칩. 항상 렌더링한다(캔버스가 흔들리지 않게). */
+export function StatusChip() {
+  const { state, solution } = useCircuit()
+  let cls = 'chip'
+  let text = '○ 부품을 놓아 보세요'
+  if (state.limitWarning) {
+    cls = 'chip is-warn'
+    text = `! 부품은 최대 ${MAX_PARTS}개`
+  } else if (solution.status === 'short') {
+    cls = 'chip is-warn'
+    text = '! 단락 경고'
+  } else if (solution.status === 'unsupported') {
+    cls = 'chip is-warn'
+    text = '! 지원하지 않는 회로'
+  } else if (state.parts.length > 0 && solution.status === 'open') {
+    text = '○ 개회로, 전류 0'
+  } else if (state.parts.length > 0) {
+    const flowing = Object.values(solution.components).some((c) => Math.abs(c.current) > 1e-6)
+    if (flowing) {
+      cls = 'chip is-ok'
+      text = '✓ 전류가 흐르는 중'
+    } else {
+      text = '○ 아직 전류가 안 흘러요'
+    }
+  }
+  return (
+    <div className="status-slot">
+      <span className={cls} role="status">
+        {text}
+      </span>
+    </div>
+  )
+}
+
+/** 하단 설명: 항상 그림 아래에 가로로 넓게. */
+export function Caption() {
+  const { state, solution } = useCircuit()
+  let text: string
+  if (state.limitWarning) {
+    text = `부품은 최대 ${MAX_PARTS}개까지 놓을 수 있어요. 쓰지 않는 부품은 휴지통 칸으로 끌어다 지워 보세요.`
+  } else if (solution.status === 'short') {
+    text = '저항 없이 전지 양쪽이 바로 이어졌어요(단락). 전류가 너무 커져서 위험해요. 전구나 저항을 사이에 넣어 보세요.'
+  } else if (solution.status === 'unsupported') {
+    text = '이 회로 구성은 아직 지원하지 않아요. 직렬과 병렬로만 이어서 다시 만들어 보세요.'
+  } else if (state.parts.length === 0) {
+    text = '왼쪽 부품 칸에서 전지와 저항, 전구를 격자 위로 끌어다 놓고 전선으로 이어 보세요. 고리 모양으로 이어지면 전류가 흘러요.'
+  } else if (solution.status === 'open') {
+    text = '전선이 끊겨 있어서 전류가 흐르지 않아요. 전지의 두 단자가 저항이나 전구를 지나 한 바퀴 이어지도록 만들어 보세요.'
+  } else {
+    text = '전류는 전지의 + 극에서 나와 회로를 한 바퀴 돌아 − 극으로 돌아가요. 전압 = 전류 × 저항(V = I × R)이라서, 전압이 같을 때 저항이 클수록 전류는 작아져요.'
+  }
+  return (
+    <div className="caption">
+      <p>{text}</p>
+    </div>
+  )
+}
+
+/** 그림 아래 figcaption: 화살표 색의 뜻을 글자로도 알려 준다. */
+export function FlowLegend() {
+  const { state } = useCircuit()
+  return (
+    <figcaption>
+      {state.flowDisplay === 'current'
+        ? '그림 1 빨간 화살표는 전류(+)가 흐르는 방향이에요. 부품과 전선을 끌어서 옮길 수 있어요.'
+        : '그림 1 초록 화살표는 전자(−)가 흐르는 방향이에요. 전류(+)와는 반대예요.'}
+    </figcaption>
   )
 }

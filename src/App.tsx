@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GridCanvas, type GridCanvasHandle } from './components/GridCanvas'
 import { Palette, PaletteThumbnail } from './components/Palette'
 import { PartInspector } from './components/PartInspector'
-import { Toolbar } from './components/Toolbar'
+import { Caption, FlowLegend, ResetButton, StatusChip, StepsBar } from './components/Toolbar'
 import type { PartKind } from './domain/parts'
 import { CircuitProvider } from './state/CircuitContext'
 
@@ -59,26 +59,46 @@ function AppShell() {
   }, [draggingKind])
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 flex flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-bold text-slate-800">옴의 법칙 격자 회로 시뮬레이터</h1>
-        <p className="text-sm text-slate-500">V = I × R — 부품을 배치하고 배선해서 전류와 전압을 확인해보세요.</p>
-      </header>
-      <Toolbar />
-      <div className="flex gap-4 items-start flex-wrap">
-        <Palette onDragStart={setDraggingKind} />
-        <div className="flex-1 min-w-[400px]">
-          <GridCanvas ref={gridCanvasRef} draggingKind={draggingKind} />
-        </div>
-        <div className="flex flex-col gap-4">
-          <PartInspector />
-        </div>
+    <div className="frame">
+      <aside className="band" aria-hidden="true">
+        <span>옴의 법칙</span>
+      </aside>
+      <div className="content">
+        {/* 상단 */}
+        <header className="lead">
+          <div>
+            <h1>전압과 저항이 바뀌면 전류는 어떻게 될까?</h1>
+            <p>부품을 끌어다 놓고 전선으로 이어서 V = I × R을 직접 확인해 보세요.</p>
+          </div>
+          <div className="lead-side">
+            <ResetButton />
+          </div>
+        </header>
+        <StepsBar />
+
+        {/* 중앙: 좌우 없이 하나. 프리셋 아래에 부품 칸(왼쪽 세로)과 캔버스 */}
+        <main className="bench">
+          <figure className="figure">
+            <section className="preset" aria-label="프리셋과 측정값">
+              <PartInspector />
+              <StatusChip />
+            </section>
+            <div className="work">
+              <Palette onDragStart={setDraggingKind} />
+              <div className="stage">
+                <GridCanvas ref={gridCanvasRef} draggingKind={draggingKind} />
+              </div>
+            </div>
+            <FlowLegend />
+          </figure>
+        </main>
+
+        {/* 하단 */}
+        <Caption />
+        <footer className="foot">옴의 법칙 시뮬레이션: 전압, 전류, 저항의 관계를 눈으로 확인해요.</footer>
       </div>
       {draggingKind && dragPointer && (
-        <div
-          className="fixed z-50 pointer-events-none rounded-md border border-slate-300 bg-white/90 shadow-lg p-1"
-          style={{ left: dragPointer.x - 20, top: dragPointer.y - 20 }}
-        >
+        <div className="drag-ghost" style={{ left: dragPointer.x - 20, top: dragPointer.y - 20 }}>
           <PaletteThumbnail kind={draggingKind} />
         </div>
       )}
