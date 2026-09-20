@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GridCanvas, type GridCanvasHandle } from './components/GridCanvas'
 import { Palette, PaletteThumbnail } from './components/Palette'
 import { PartInspector } from './components/PartInspector'
+import { Credit } from './components/Credit'
 import { Caption, FlowLegend, ResetButton, StatusChip, StepsBar } from './components/Toolbar'
 import type { PartKind } from './domain/parts'
 import { CircuitProvider } from './state/CircuitContext'
@@ -95,7 +96,7 @@ function AppShell() {
 
         {/* 하단 */}
         <Caption />
-        <footer className="foot">옴의 법칙 시뮬레이션: 전압, 전류, 저항의 관계를 눈으로 확인해요.</footer>
+        <Credit />
       </div>
       {draggingKind && dragPointer && (
         <div className="drag-ghost" style={{ left: dragPointer.x - 20, top: dragPointer.y - 20 }}>
