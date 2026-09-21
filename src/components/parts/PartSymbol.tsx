@@ -71,11 +71,12 @@ function BatterySymbol({ value, rotation }: { value: number; rotation: number })
     <g>
       <line x1={CELL * 0.35} y1={-10} x2={CELL * 0.35} y2={10} stroke="currentColor" strokeWidth={4} />
       <line x1={CELL * 0.65} y1={-16} x2={CELL * 0.65} y2={16} stroke="currentColor" strokeWidth={2} />
-      <Label x={CELL * 0.35} y={-16} rotation={rotation} className="svg-plus">
-        +
-      </Label>
-      <Label x={CELL * 0.65} y={-20} rotation={rotation} className="svg-minus">
+      {/* 교과서 기호: 짧고 굵은 선이 (−), 긴 선이 (+). 솔버 기준 (+)는 단자 b(오른쪽)라 긴 선이 b쪽에 있다. */}
+      <Label x={CELL * 0.35} y={-16} rotation={rotation} className="svg-minus">
         −
+      </Label>
+      <Label x={CELL * 0.65} y={-20} rotation={rotation} className="svg-plus">
+        +
       </Label>
       <Label x={CELL / 2} y={26} rotation={rotation} className="svg-ink">
         {value}V
@@ -84,10 +85,22 @@ function BatterySymbol({ value, rotation }: { value: number; rotation: number })
   )
 }
 
+/** 교과서 저항 기호: 지그재그. 가운데 선(도선)을 흰 배경으로 가려서 지그재그만 보이게 한다. */
+const ZIGZAG = '8,0 10,-9 15,9 20,-9 25,9 30,-9 32,0'
+
+function Zigzag() {
+  return (
+    <>
+      <rect x={8} y={-10} width={24} height={20} className="svg-white" />
+      <polyline points={ZIGZAG} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="miter" />
+    </>
+  )
+}
+
 function ResistorSymbol({ value, label, rotation }: { value: number; label: string; rotation: number }) {
   return (
     <g>
-      <rect x={CELL * 0.2} y={-10} width={CELL * 0.6} height={20} className="svg-white" stroke="currentColor" strokeWidth={2} />
+      <Zigzag />
       <Label x={CELL / 2} y={26} rotation={rotation} className="svg-ink">
         {label} {value}Ω
       </Label>
@@ -95,18 +108,39 @@ function ResistorSymbol({ value, label, rotation }: { value: number; label: stri
   )
 }
 
-function BulbSymbol({ value, current, rotation }: { value: number; current: number; rotation: number }) {
-  const brightness = Math.max(0, Math.min(1, current / BULB_REFERENCE_CURRENT))
+/** 가변저항 기호: 지그재그를 비스듬한 화살표가 가로지른다. */
+function RheostatSymbol({ value, rotation }: { value: number; rotation: number }) {
   return (
     <g>
-      <circle cx={CELL / 2} cy={0} r={14} className="svg-white" stroke="currentColor" strokeWidth={2} />
-      <circle cx={CELL / 2} cy={0} r={13} className="svg-unit" fillOpacity={brightness * 0.6} />
-      <line x1={CELL / 2 - 8} y1={-8} x2={CELL / 2 + 8} y2={8} stroke="currentColor" strokeWidth={1.5} />
-      <line x1={CELL / 2 - 8} y1={8} x2={CELL / 2 + 8} y2={-8} stroke="currentColor" strokeWidth={1.5} />
-      <Label x={CELL / 2} y={-20} rotation={rotation} className="svg-ink">
+      <Zigzag />
+      <line x1={11} y1={15} x2={26.5} y2={-10} stroke="currentColor" strokeWidth={2} />
+      <polygon points="30,-16 29.3,-8.1 23.3,-11.9" fill="currentColor" />
+      <Label x={CELL / 2} y={30} rotation={rotation} className="svg-ink">
+        가변 {value}Ω
+      </Label>
+    </g>
+  )
+}
+
+/** 교과서 전구 기호: 원 안에 Ω 모양 필라멘트. 밝기는 원 안 색으로 보여 준다. */
+function BulbSymbol({ value, current, rotation }: { value: number; current: number; rotation: number }) {
+  const brightness = Math.max(0, Math.min(1, current / BULB_REFERENCE_CURRENT))
+  const c = CELL / 2
+  return (
+    <g>
+      <circle cx={c} cy={0} r={14} className="svg-white" stroke="currentColor" strokeWidth={2} />
+      <circle cx={c} cy={0} r={13} className="svg-unit" fillOpacity={brightness * 0.6} />
+      <path
+        d={`M ${c - 9} 8 L ${c - 5} 8 C ${c - 5} -10, ${c + 5} -10, ${c + 5} 8 L ${c + 9} 8`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <Label x={c} y={-20} rotation={rotation} className="svg-ink">
         {value}Ω
       </Label>
-      <Label x={CELL / 2} y={30} rotation={rotation} fontWeight={600} className="svg-ink">
+      <Label x={c} y={30} rotation={rotation} fontWeight={600} className="svg-ink">
         {Math.round(brightness * 100)}%
       </Label>
     </g>
@@ -180,7 +214,7 @@ export function PartSymbol({ part, result, selected, mode, flowDisplay, onSelect
         <>
           {part.kind === 'battery' && <BatterySymbol value={part.value} rotation={rotation} />}
           {part.kind === 'resistor' && <ResistorSymbol value={part.value} label="R" rotation={rotation} />}
-          {part.kind === 'rheostat' && <ResistorSymbol value={part.value} label="가변" rotation={rotation} />}
+          {part.kind === 'rheostat' && <RheostatSymbol value={part.value} rotation={rotation} />}
           {part.kind === 'bulb' && <BulbSymbol value={part.value} current={magnitude} rotation={rotation} />}
           {part.kind === 'switch' && <SwitchSymbol closed={part.closed} rotation={rotation} onToggle={onToggleSwitch} />}
           {part.kind === 'voltmeter' && <MeterSymbol kind="V" reading={voltage} unit="V" rotation={rotation} />}
