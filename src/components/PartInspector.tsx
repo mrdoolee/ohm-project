@@ -31,6 +31,7 @@ export function PartInspector() {
 
   return (
     <div className="inspector">
+      <div className="inspector-side">
       <h2>{KIND_LABEL[part.kind] ?? part.kind}</h2>
 
       <dl className="readout">
@@ -49,6 +50,7 @@ export function PartInspector() {
           </dd>
         </div>
       </dl>
+      </div>
 
       {NO_VALUE_KINDS.has(part.kind) ? (
         <p className="inspector-empty">{KIND_LABEL[part.kind]}은(는) 값을 정하지 않아요.</p>
@@ -79,16 +81,18 @@ function ValueEditor({ kind, value, onChange }: { kind: string; value: number; o
           </button>
         ))}
       </div>
+      <div className="editor-fields">
       <label className="field">
         직접 입력
         <input type="number" value={value} min={0} onChange={(e) => onChange(Number(e.target.value))} />
       </label>
       {kind === 'rheostat' && (
         <label className="field">
-          슬라이더 (0~1000Ω)
+          슬라이더
           <input type="range" min={0} max={1000} value={value} onChange={(e) => onChange(Number(e.target.value))} />
         </label>
       )}
+      </div>
     </div>
   )
 }
