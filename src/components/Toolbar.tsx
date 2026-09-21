@@ -69,7 +69,7 @@ export function StepsBar() {
           onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'current' })}
           className={seg(state.flowDisplay === 'current')}
         >
-          전류의 흐름 (+)
+          전류의 흐름
         </button>
         <button
           type="button"
@@ -77,7 +77,7 @@ export function StepsBar() {
           onClick={() => dispatch({ type: 'SET_FLOW_DISPLAY', mode: 'electron' })}
           className={seg(state.flowDisplay === 'electron')}
         >
-          전자의 흐름 (−)
+          전자의 흐름
         </button>
       </div>
       <span className="steps-gap" />

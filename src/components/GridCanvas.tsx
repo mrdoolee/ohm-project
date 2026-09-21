@@ -29,6 +29,8 @@ const HEIGHT = GRID_ROWS * CELL
 // component DOM lookups needed.
 const DELETE_ZONE = { x: 4, y: 4, width: CELL * 2 - 8, height: CELL - 8 }
 
+const DRAG_THRESHOLD_PX = 8
+
 function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: number): GridPoint {
   const rect = svg.getBoundingClientRect()
   const x = ((clientX - rect.left) / rect.width) * WIDTH
@@ -136,6 +138,22 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     },
   }))
 
+  // A tap on touch is never perfectly still: the finger jitters a few px, which
+  // fires pointermove. Without a dead zone that jitter counted as a drag, and
+  // because the dragged part snapped to the grid point nearest the *finger*
+  // (not to where it was grabbed) a plain tap on a switch's body slid the part
+  // sideways by up to a cell before the click could toggle it. So: ignore
+  // movement until it passes DRAG_THRESHOLD_PX, and keep the grab offset
+  // (pointer minus anchor point) so the part follows the finger without jumping.
+  const grabRef = useRef<{ cx: number; cy: number; ox: number; oy: number; moved: boolean } | null>(null)
+
+  function beginGrab(e: React.PointerEvent, anchor: GridPoint) {
+    if (!svgRef.current) return
+    const p = clientToSvgPixel(svgRef.current, e.clientX, e.clientY)
+    const a = toPixel(anchor)
+    grabRef.current = { cx: e.clientX, cy: e.clientY, ox: p.x - a.x, oy: p.y - a.y, moved: false }
+  }
+
   function startPartDrag(part: Part) {
     dispatch({ type: 'SELECT', id: part.id })
     setDraggingPartId(part.id)
@@ -165,7 +183,16 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       setOverDeleteZone(overDelete)
       if (overDelete) return // freeze in place while hovering the delete zone
     }
-    const point = clientToGrid(svgRef.current, e.clientX, e.clientY)
+    let point = clientToGrid(svgRef.current, e.clientX, e.clientY)
+    const grab = grabRef.current
+    if (grab && (draggingPartId || draggingWireId)) {
+      if (!grab.moved) {
+        if (Math.hypot(e.clientX - grab.cx, e.clientY - grab.cy) < DRAG_THRESHOLD_PX) return
+        grab.moved = true
+      }
+      const px = clientToSvgPixel(svgRef.current, e.clientX, e.clientY)
+      point = clampToGrid(nearestGridPoint(px.x - grab.ox, px.y - grab.oy))
+    }
     if (draggingPartId) {
       const part = state.parts.find((p) => p.id === draggingPartId)
       if (part) setDragPartOrigin(clampOriginForRotation(point, part.rotation))
@@ -196,6 +223,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         dispatch({ type: 'RESIZE_WIRE_ENDPOINT', id: draggingEndpoint.id, endpoint: draggingEndpoint.endpoint, point })
       }
     }
+    grabRef.current = null
     setDraggingPartId(null)
     setDragPartOrigin(null)
     setDraggingWireId(null)
@@ -285,6 +313,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
               className="wire-hit"
               onPointerDown={(e) => {
                 e.stopPropagation()
+                beginGrab(e, wire.points[0])
                 startWireBodyDrag(wire)
               }}
               onClick={(e) => e.stopPropagation()}
@@ -325,6 +354,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
             key={part.id}
             onPointerDown={(e) => {
               e.stopPropagation()
+              beginGrab(e, part.origin)
               startPartDrag(part)
             }}
           >
